@@ -1,3 +1,4 @@
+from configparser import DuplicateOptionError
 from sre_constants import SUCCESS
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
@@ -12,7 +13,7 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-
+from django.db.utils import IntegrityError
 
 class UserRegistrationAPIView(APIView):
     def post(self, request):
@@ -64,7 +65,10 @@ class BlockSeatsAPIView(APIView):
             num_passengers = serializer.validated_data['num_passengers']
             bus = Bus.objects.get(start_time=bus_start_time) 
             blocking_id = f'BLOCK-{bus_start_time}-{pickup_point}'  # Generate a blocking ID
-            SeatBlock.objects.create(bus=bus,is_blocked=True,blocking_id=blocking_id,pickup_point=pickup_point)
+            try:
+                SeatBlock.objects.create(bus=bus,is_blocked=True,blocking_id=blocking_id,pickup_point=pickup_point)
+            except IntegrityError:
+                return Response({'message': 'Duplicate record not allowed'})    
             return Response({'message': 'Seats blocked successfully.', 'blocking_id': blocking_id}, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -80,7 +84,10 @@ class BookingTicketAPIView(APIView):
             blocking_id = serializer.validated_data['blocking_id']
             booking_id = f'BOOK-{blocking_id}'  # Generate a booking ID
             block_seat = SeatBlock.objects.get(blocking_id=blocking_id)
-            Booking.objects.create(seat=block_seat, booking_id=booking_id)
+            try:
+                Booking.objects.create(seat=block_seat, booking_id=booking_id)
+            except IntegrityError:
+                return Response({'message': 'Duplicate record not allowed'})    
             return Response({'message': 'Booking successful.', 'booking_id': booking_id}, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
